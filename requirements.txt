@@ -1,0 +1,21 @@
+# Core framework — Django 5.2 LTS (approved Django 5.x line)
+Django==5.2.19
+
+# REST API
+djangorestframework==3.16.1
+drf-spectacular==0.28.0
+
+# CORS for the existing React frontend
+django-cors-headers==4.7.0
+
+# Environment variable configuration
+django-environ==0.12.0
+
+# bcrypt password hashing — required to verify existing Laravel hashes
+bcrypt==4.3.0
+
+# PostgreSQL driver (psycopg 3, binary wheels)
+psycopg[binary]==3.2.13
+
+# Production WSGI server
+gunicorn==23.0.0
