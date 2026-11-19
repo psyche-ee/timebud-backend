@@ -19,28 +19,6 @@ The API contract to implement next lives in `../API_CONTRACT_PART1.md` …
 | API docs | drf-spectacular 0.28.0 |
 | WSGI server | gunicorn 23.0.0 |
 
-## Layout
-
-```
-timebud-backend-django/
-├── config/
-│   ├── settings/
-│   │   ├── base.py           # shared settings, env loading, DRF/CORS/spectacular
-│   │   ├── development.py    # DEBUG on, local CORS origins
-│   │   └── production.py     # secure defaults, SECRET_KEY required
-│   ├── api/
-│   │   ├── responses.py      # {status, message, data} envelope helpers
-│   │   ├── exceptions.py     # centralized handler + DomainError
-│   │   ├── views.py          # health check only
-│   │   └── urls.py           # /api routes
-│   ├── urls.py               # mounts everything under /api/
-│   ├── asgi.py
-│   └── wsgi.py
-├── manage.py
-├── requirements.txt
-├── .env.example
-└── .gitignore
-```
 
 ## Setup
 
