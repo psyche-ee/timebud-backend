@@ -36,10 +36,14 @@ urlpatterns = [
         name="api-change-password",
     ),
     path("logout", auth_views.LogoutView.as_view(), name="api-logout"),
+    path("auth/google", auth_views.GoogleLoginView.as_view(), name="api-google-login"),
+    path("profile", auth_views.ProfileView.as_view(), name="api-profile"),
     # Protected record / DTR endpoints
     path("dashboard", record_views.DashboardView.as_view(), name="api-dashboard"),
     path("time-in", record_views.TimeInView.as_view(), name="api-time-in"),
     path("time-out", record_views.TimeOutView.as_view(), name="api-time-out"),
+    path("break-in", record_views.BreakInView.as_view(), name="api-break-in"),
+    path("break-out", record_views.BreakOutView.as_view(), name="api-break-out"),
     path("records", record_views.RecordsView.as_view(), name="api-records"),
     path(
         "records/<int:pk>",
@@ -56,6 +60,16 @@ urlpatterns = [
         "manual-time-out",
         record_views.ManualTimeOutView.as_view(),
         name="api-manual-time-out",
+    ),
+    path(
+        "manual-entry/parse",
+        record_views.ManualEntryParseView.as_view(),
+        name="api-manual-entry-parse",
+    ),
+    path(
+        "manual-entry",
+        record_views.ManualEntryView.as_view(),
+        name="api-manual-entry",
     ),
     # Infrastructure
     path("health/", views.health_check, name="api-health"),

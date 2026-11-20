@@ -103,6 +103,13 @@ if _database_url := env("DATABASE_URL", default=None):
     DATABASES["default"] = env.db_url("DATABASE_URL")
 
 # ---------------------------------------------------------------------------
+# Google OAuth (Sign In with Google / ID token verification)
+# ---------------------------------------------------------------------------
+# Set GOOGLE_CLIENT_ID in .env. Obtain it from the Google Cloud Console:
+# APIs & Services → Credentials → OAuth 2.0 Client ID (Web application).
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+
+# ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
 # Laravel hashes passwords with bcrypt; keep hashes interchangeable and let

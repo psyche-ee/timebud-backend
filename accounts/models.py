@@ -57,6 +57,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=0,
         validators=[MinValueValidator(0)],
     )
+    # Overtime rules. Overtime applies to hours worked beyond
+    # ``overtime_threshold_hrs`` in a single shift (per-record daily rule).
+    overtime_threshold_hrs = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=8,
+        validators=[MinValueValidator(0)],
+    )
+    # If zero, falls back to ``rate_per_hr``. Snapshot is taken per record on
+    # clock-out so historical overtime earnings stay stable.
+    overtime_rate_per_hr = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
 
     remember_token = models.CharField(max_length=100, null=True, blank=True)
 

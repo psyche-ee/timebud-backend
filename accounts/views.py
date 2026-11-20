@@ -10,6 +10,7 @@ from .serializers import (
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
     LoginSerializer,
+    ProfileSerializer,
     RegisterSerializer,
     ResetPasswordSerializer,
 )
@@ -51,6 +52,56 @@ class LoginView(APIView):
         return success_response(
             data=services.auth_payload(user, token, include_user_id=True),
             message="User logged in successfully",
+        )
+
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return success_response(data=services.profile_payload(request.user))
+
+    def put(self, request):
+        return self._update(request)
+
+    def patch(self, request):
+        return self._update(request)
+
+    def _update(self, request):
+        serializer = ProfileSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        user = services.update_profile(request.user, serializer.validated_data)
+        return success_response(
+            data=services.profile_payload(user),
+            message="Profile updated successfully",
+        )
+
+
+class GoogleLoginView(APIView):
+    """Sign in / sign up with a Google ID token (Sign In with Google).
+
+    The frontend obtains ``credential`` from Google Identity Services and POSTs
+    it here. The server verifies the signature/audience with Google's public
+    keys, gets or creates the user by email, and issues the same Sanctum-style
+    token as email/password login.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        credential = request.data.get("credential")
+        if not credential:
+            return error_response(message="Google credential is required", data=None)
+
+        try:
+            user, token = services.google_login(credential)
+        except ValueError as error:
+            return error_response(message=str(error), data=None)
+
+        return success_response(
+            data=services.auth_payload(user, token, include_user_id=True),
+            message="Signed in with Google successfully",
         )
 
 

@@ -8,6 +8,7 @@ mix so the existing React components do not need changes.
 
 from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal, ROUND_HALF_UP
+import re
 
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
@@ -50,6 +51,9 @@ def parse_timestamp(value):
 
     Returns an aware UTC datetime. A missing/empty value resolves to "now",
     exactly as Carbon::parse(null) does in the Laravel controllers.
+
+    Accepts ISO-8601 strings (``2026-06-15T14:30:00``) as well as common
+    12-hour formats (``2026-06-15 2:30 PM`` or just ``2:30 PM``).
     """
     if value is None or value == "":
         return timezone.now()
@@ -63,6 +67,12 @@ def parse_timestamp(value):
             if date_only is not None:
                 parsed = datetime.combine(date_only, datetime.min.time())
 
+    # Fallback for 12-hour clock strings like "2026-06-15 2:30 PM" or "2:30 PM".
+    if parsed is None and isinstance(value, str):
+        twelve_hour = _parse_12_hour(value)
+        if twelve_hour is not None:
+            parsed = twelve_hour
+
     if parsed is None:
         raise ValueError("Invalid timestamp")
 
@@ -72,18 +82,73 @@ def parse_timestamp(value):
     return parsed
 
 
-def work_hours(time_in, time_out):
-    """Laravel: ``round(Carbon::parse(time_in)->diffInMinutes(time_out) / 60, 2)``.
+def _parse_12_hour(value):
+    """Best-effort parse of 12-hour clock strings with AM/PM.
 
-    Carbon 3.11.1 ``diffInMinutes()`` is a **signed, fractional** value derived
-    from ``diffInMicroseconds() / 60``. Seconds are therefore preserved, and a
-    time-out before time-in produces a negative result. ``php_round`` supplies
-    PHP's half-away-from-zero rounding.
+    Supports:
+      - ``2026-06-15 2:30 PM``
+      - ``2026-06-15 2:30pm``
+      - ``2:30 PM`` (time only → combined with today's date)
+    """
+    patterns = [
+        # Full datetime: 2026-06-15 2:30 PM
+        re.compile(
+            r"^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$", re.IGNORECASE
+        ),
+        # Time only: 2:30 PM
+        re.compile(r"^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$", re.IGNORECASE),
+    ]
+
+    for pattern in patterns:
+        match = pattern.match(value.strip())
+        if not match:
+            continue
+
+        groups = match.groups()
+        if len(groups) == 4:
+            date_str, hour_str, minute_str, meridian = groups
+            date_part = datetime.strptime(date_str, "%Y-%m-%d").date()
+        else:
+            hour_str, minute_str, meridian = groups
+            date_part = timezone.localdate()
+
+        hour = int(hour_str)
+        minute = int(minute_str)
+
+        # Convert 12-hour to 24-hour.
+        meridian_upper = meridian.upper()
+        if meridian_upper == "AM":
+            if hour == 12:
+                hour = 0
+        else:  # PM
+            if hour != 12:
+                hour += 12
+
+        parsed = datetime.combine(date_part, datetime.min.time().replace(hour=hour, minute=minute))
+        return parsed
+
+    return None
+
+
+def elapsed_microseconds(start, end):
+    """Exact microseconds between two aware datetimes (may be negative)."""
+    delta = end - start
+    return (delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds
+
+
+def work_hours(time_in, time_out):
+    """Hours between two punches, rounded like PHP's ``round(..., 2)``.
+
+    Seconds are preserved. A time-out earlier than time-in is a data error, not
+    negative work, so it is clamped to zero. Callers that accept user-supplied
+    times should reject the combination before reaching this helper.
     """
     if time_in is None or time_out is None:
         return Decimal("0.00")
 
-    delta = time_out - time_in
-    total_microseconds = (delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds
+    total_microseconds = elapsed_microseconds(time_in, time_out)
+    if total_microseconds <= 0:
+        return Decimal("0.00")
+
     minutes = total_microseconds / 60_000_000
     return Decimal(str(php_round(minutes / 60, 2)))

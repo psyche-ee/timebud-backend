@@ -178,6 +178,89 @@ class ResetPasswordSerializer(LaravelStyleSerializer):
         return attrs
 
 
+class ProfileSerializer(LaravelStyleSerializer):
+    """Validatable profile fields the client is allowed to update."""
+
+    f_name = serializers.CharField(
+        max_length=255,
+        error_messages={
+            "required": _required("f name"),
+            "blank": _required("f name"),
+            "max_length": _max("f name"),
+        },
+    )
+    l_name = serializers.CharField(
+        max_length=255,
+        error_messages={
+            "required": _required("l name"),
+            "blank": _required("l name"),
+            "max_length": _max("l name"),
+        },
+    )
+    m_name = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        error_messages={"max_length": _max("m name")},
+    )
+    email = serializers.EmailField(
+        max_length=255,
+        error_messages={
+            "required": _required("email"),
+            "blank": _required("email"),
+            "invalid": "The email must be a valid email address.",
+            "max_length": _max("email"),
+        },
+    )
+    dob = serializers.DateField(
+        error_messages={
+            "required": _required("dob"),
+            "invalid": "The dob is not a valid date.",
+        }
+    )
+    gender = serializers.ChoiceField(choices=GENDERS, required=False)
+    rate_per_hr = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        min_value=0,
+        error_messages={
+            "invalid": "The rate per hr must be a number.",
+            "min_value": "The rate per hr must be at least 0.",
+        },
+    )
+    overtime_threshold_hrs = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        min_value=0,
+        error_messages={
+            "invalid": "The overtime threshold must be a number.",
+            "min_value": "The overtime threshold must be at least 0.",
+        },
+    )
+    overtime_rate_per_hr = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0,
+        error_messages={
+            "invalid": "The overtime rate must be a number.",
+            "min_value": "The overtime rate must be at least 0.",
+        },
+    )
+
+    def validate_email(self, value):
+        queryset = User.objects.filter(email=value)
+        if self.instance is not None:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("The email has already been taken.")
+        return value
+
+
 class ChangePasswordSerializer(LaravelStyleSerializer):
     current_password = serializers.CharField(
         error_messages={

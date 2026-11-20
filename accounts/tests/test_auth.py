@@ -2,6 +2,8 @@
 
 import hashlib
 from datetime import timedelta
+from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.hashers import check_password
 from django.core import mail
@@ -11,6 +13,7 @@ from rest_framework.test import APITestCase
 
 from accounts import services
 from accounts.models import PasswordResetToken, PersonalAccessToken, User
+from attendance.models import Record
 
 
 def register_payload(**overrides):
@@ -324,3 +327,136 @@ class AuthTests(APITestCase):
         self.assertIn(
             "The password confirmation does not match.", response.data["data"]
         )
+
+    def test_profile_update_persists_rate_and_backfills_zero_rate_records(self):
+        user, _ = self._authenticated_client()
+        user.rate_per_hr = 0
+        user.save(update_fields=["rate_per_hr"])
+
+        record = Record.objects.create(
+            user=user,
+            time_in=timezone.now() - timedelta(hours=2),
+            time_out=timezone.now(),
+            total_hrs="2.00",
+            rate_per_hr=0,
+            earnings=0,
+        )
+
+        response = self.client.put(
+            "/api/profile",
+            {
+                "f_name": "Pedro",
+                "l_name": "Penduko",
+                "email": "pedro@example.com",
+                "dob": "1999-05-01",
+                "gender": "male",
+                "rate_per_hr": "100.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], 1)
+        self.assertEqual(response.data["data"]["rate_per_hr"], "100.00")
+        self.assertEqual(response.data["data"]["email"], "pedro@example.com")
+
+        user.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(user.rate_per_hr, 100)
+        self.assertEqual(record.rate_per_hr, 100)
+        self.assertEqual(record.earnings, 200)
+
+        earnings = self.client.get("/api/earnings")
+        self.assertEqual(earnings.data["data"]["total"], 200.0)
+
+    def test_profile_update_persists_overtime_settings(self):
+        user, _ = self._authenticated_client()
+        response = self.client.put(
+            "/api/profile",
+            {
+                "f_name": "Juan",
+                "l_name": "Dela Cruz",
+                "email": "juan@example.com",
+                "dob": "2000-01-31",
+                "gender": "male",
+                "rate_per_hr": "100.00",
+                "overtime_threshold_hrs": "8.00",
+                "overtime_rate_per_hr": "150.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["rate_per_hr"], "100.00")
+        self.assertEqual(response.data["data"]["overtime_threshold_hrs"], "8.00")
+        self.assertEqual(response.data["data"]["overtime_rate_per_hr"], "150.00")
+
+        user.refresh_from_db()
+        self.assertEqual(user.overtime_threshold_hrs, Decimal("8.00"))
+        self.assertEqual(user.overtime_rate_per_hr, Decimal("150.00"))
+
+    def test_blank_overtime_rate_uses_regular_rate_sentinel(self):
+        user, _ = self._authenticated_client()
+        response = self.client.put(
+            "/api/profile",
+            {
+                "f_name": "Juan",
+                "l_name": "Dela Cruz",
+                "email": "juan@example.com",
+                "dob": "2000-01-31",
+                "gender": "male",
+                "rate_per_hr": "100.00",
+                "overtime_rate_per_hr": None,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["overtime_rate_per_hr"], "0.00")
+        user.refresh_from_db()
+        self.assertEqual(user.overtime_rate_per_hr, Decimal("0.00"))
+
+
+@override_settings(GOOGLE_CLIENT_ID="test-client-id.apps.googleusercontent.com")
+class GoogleLoginTests(APITestCase):
+    IDINFO = {
+        "iss": "accounts.google.com",
+        "email_verified": True,
+        "email": "juanauth@example.com",
+        "given_name": "Juan",
+        "family_name": "Dela Cruz",
+        "sub": "1234567890",
+    }
+
+    @patch("accounts.services.id_token.verify_oauth2_token")
+    def test_google_login_creates_user_and_token(self, mock_verify):
+        mock_verify.return_value = self.IDINFO
+
+        user, token = services.google_login("any-credential")
+
+        mock_verify.assert_called_once()
+        self.assertEqual(user.email, "juanauth@example.com")
+        self.assertEqual(user.f_name, "Juan")
+        self.assertEqual(user.l_name, "Dela Cruz")
+        # Google accounts have no password; mark it unusable.
+        self.assertTrue(user.password.startswith("!"))
+        self.assertIsNotNone(token)
+
+    @patch("accounts.services.id_token.verify_oauth2_token")
+    def test_google_login_reuses_existing_user(self, mock_verify):
+        mock_verify.return_value = self.IDINFO
+
+        services.google_login("any-credential")
+        user2, _ = services.google_login("any-credential")
+
+        self.assertEqual(
+            User.objects.filter(email="juanauth@example.com").count(), 1
+        )
+        self.assertEqual(user2.email, "juanauth@example.com")
+
+    @patch("accounts.services.id_token.verify_oauth2_token")
+    def test_google_login_rejects_invalid_token(self, mock_verify):
+        mock_verify.side_effect = ValueError("Invalid token")
+
+        with self.assertRaises(ValueError):
+            services.google_login("bad-credential")
