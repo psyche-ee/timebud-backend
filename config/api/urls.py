@@ -73,6 +73,8 @@ urlpatterns = [
     ),
     # Infrastructure
     path("health/", views.health_check, name="api-health"),
+    path("ping/", views.ping, name="api-ping"),
+    path("cron/", views.ping, name="api-cron"),
     path("schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path(
         "docs/",

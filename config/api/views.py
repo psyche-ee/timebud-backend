@@ -1,6 +1,7 @@
 """Infrastructure endpoints only — no business logic yet."""
 
 from django.db import DatabaseError, connection
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -28,4 +29,22 @@ def health_check(request):
     return success_response(
         data={"status": "ok", "database": "connected"},
         message="Service is healthy",
+    )
+
+
+@extend_schema(
+    summary="Simple keep-alive ping",
+    description=(
+        "Unauthenticated GET endpoint intended for cron jobs. Has no side "
+        "effects and is safe to call repeatedly."
+    ),
+    responses={200: dict},
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def ping(request):
+    """Return a lightweight success response for scheduled pings."""
+    return success_response(
+        data={"status": "ok", "timestamp": timezone.now().isoformat()},
+        message="pong",
     )

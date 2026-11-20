@@ -40,6 +40,7 @@ python manage.py runserver
 | URL | Purpose |
 |-----|---------|
 | `/api/health/` | Public service + PostgreSQL connectivity check |
+| `/api/ping/`, `/api/cron/` | Unauthenticated GET keep-alive for cron jobs |
 | `/api/register`, `/api/login`, `/api/logout` | Authentication |
 | `/api/auth/google`, `/api/forgot-password`, `/api/reset-password` | Google / password flows |
 | `/api/profile`, `/api/change-password` | Account settings |
@@ -78,6 +79,14 @@ Notes:
   (`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`) are set.
 - On the free plan the service sleeps after inactivity; the first request
   after a sleep may take a few seconds.
+
+To keep it warm, point any cron scheduler at:
+
+```bash
+curl https://timebud-backend-qs8l.onrender.com/api/ping/
+```
+
+`/api/cron/` is an alias for the same endpoint. No token or headers are needed.
 
 ## Contract safeguards
 
