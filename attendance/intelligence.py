@@ -46,6 +46,21 @@ _RANGE_RE = re.compile(
     rf"(?:from\s*)?{_TIME}\s*(?:[-–—]|to|until|till|thru)\s*{_TIME}",
     re.IGNORECASE,
 )
+# Date phrases are removed before locating the time range. Without this,
+# "8:30am November 18 to 12:40pm November 18" matches "18 to 12:40pm" and
+# interprets 18:00 (6:00 PM) as the time in.
+_DAY_NAMES = "|".join(sorted(WEEKDAYS, key=len, reverse=True))
+_MONTH_NAMES = "|".join(sorted(MONTHS, key=len, reverse=True))
+_DAY_PHRASE_RE = re.compile(
+    rf"\b(?:"
+    rf"yesterday|today|"
+    rf"(?:(?:last|this|on)\s+)?(?:{_DAY_NAMES})|"
+    rf"(?:{_MONTH_NAMES})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+\d{{4}})?|"
+    rf"\d{{4}}-\d{{1,2}}-\d{{1,2}}|"
+    rf"\d{{1,2}}[/-]\d{{1,2}}(?:[/-]\d{{2,4}})?"
+    rf")\b",
+    re.IGNORECASE,
+)
 _PUNCH_TIME_PATTERNS = [
     re.compile(r"(?P<h>\d{1,2}):(?P<m>\d{2})\s*(?P<mer>a\.?m\.?|p\.?m\.?)?", re.I),
     re.compile(r"(?P<h>\d{1,2})\s*(?P<mer>a\.?m\.?|p\.?m\.?)", re.I),
@@ -170,7 +185,9 @@ def parse_manual_entry(text):
         return None
 
     text = text.strip()
-    range_match = _RANGE_RE.search(text)
+    # Keep the original text for day/break detection, but strip dates before
+    # finding the range so a bare day number cannot be mistaken for a time.
+    range_match = _RANGE_RE.search(_DAY_PHRASE_RE.sub(" ", text))
     if not range_match:
         return None
 

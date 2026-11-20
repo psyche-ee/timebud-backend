@@ -46,6 +46,19 @@ class IntelligenceTests(APITestCase):
         self.assertIn("08:30", parsed["time_in"])
         self.assertIn("18:15", parsed["time_out"])
 
+    def test_parse_range_when_date_phrase_sits_between_times(self):
+        with patch("attendance.intelligence.timezone.now", return_value=FIXED_NOW):
+            parsed = parse_manual_entry(
+                "worked 8:30am november 18 to 12:40pm november 18"
+            )
+
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["date"], "2026-11-18")
+        self.assertEqual(parsed["time_in_label"], "8:30 AM")
+        self.assertEqual(parsed["time_out_label"], "12:40 PM")
+        self.assertEqual(parsed["break_minutes"], 0)
+        self.assertIn("8:30 AM", parsed["interpreted"])
+
     def test_parse_single_punch_time(self):
         with patch("attendance.intelligence.timezone.now", return_value=FIXED_NOW):
             parsed = parse_manual_punch("8:30 AM last Tuesday")
