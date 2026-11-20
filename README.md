@@ -16,7 +16,7 @@ response envelope, bearer tokens, and `Asia/Manila` time handling.
 | CORS | django-cors-headers 4.7.0 |
 | API docs | drf-spectacular 0.28.0 |
 | WSGI server | gunicorn 23.0.0 |
-| Auth | bcrypt 4.3.0, google-auth 2.62.2 |
+| Auth | bcrypt 4.3.0, google-auth 2.62.2, requests 2.34.1 |
 
 ## Local setup
 
