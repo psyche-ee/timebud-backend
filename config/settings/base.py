@@ -98,9 +98,17 @@ DATABASES = {
     }
 }
 
-# DATABASE_URL, when supplied, replaces the individual DB_* values.
+# DATABASE_URL, when supplied, replaces the individual DB_* values. This is
+# how Neon (and Render) provide the connection string; django-environ keeps
+# `sslmode` / `channel_binding` from the query string in OPTIONS.
 if _database_url := env("DATABASE_URL", default=None):
     DATABASES["default"] = env.db_url("DATABASE_URL")
+    # Pooled/serverless hosts can drop idle connections, so keep them short-lived
+    # and let Django retry a stale connection once before failing.
+    DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=0)
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = env.bool(
+        "DB_CONN_HEALTH_CHECKS", default=True
+    )
 
 # ---------------------------------------------------------------------------
 # Google OAuth (Sign In with Google / ID token verification)

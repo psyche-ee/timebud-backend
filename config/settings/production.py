@@ -5,7 +5,11 @@ from .base import env
 
 DEBUG = False
 
+# Render exposes the generated onrender.com hostname here, so deployments work
+# even when the service is renamed or a preview deployment is used.
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
+if _render_host := env("RENDER_EXTERNAL_HOSTNAME", default=""):
+    ALLOWED_HOSTS.append(_render_host)
 
 SECRET_KEY = env("SECRET_KEY")  # required in production — no insecure fallback
 
@@ -16,8 +20,9 @@ CORS_ALLOWED_ORIGINS = env.list(
 )
 CORS_ALLOW_CREDENTIALS = False
 
-# Security middleware settings (toggle via .env if TLS is terminated upstream).
-SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+# Security middleware settings. Render terminates TLS at the edge and its
+# health check is HTTP, so Django must not issue redirects itself.
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=True)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=True)
@@ -28,10 +33,15 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 
-# Email must be a real transport in production for password resets to work.
+# Password resets need a real transport; fall back to console logging until
+# SMTP credentials are configured (otherwise startup/deploys still succeed).
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
-    default="django.core.mail.backends.smtp.EmailBackend",
+    default=(
+        "django.core.mail.backends.smtp.EmailBackend"
+        if env("EMAIL_HOST", default="")
+        else "django.core.mail.backends.console.EmailBackend"
+    ),
 )
 
 LOGGING = {
